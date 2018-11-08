@@ -230,6 +230,11 @@ func (c *Client) getContainerConfig() *godocker.Config {
 		envVariables[envKey] = envValue
 	}
 
+	// merge in instance-specific environment variables
+	for envKey, envValue := range c.getInstanceSpecificEnvVariables() {
+		envVariables[envKey] = envValue
+	}
+
 	// merge in user-supplied environment variables
 	for envKey, envValue := range c.loadEnvVariables() {
 		envVariables[envKey] = envValue
@@ -250,6 +255,26 @@ func (c *Client) loadEnvVariables() map[string]string {
 	envVariables := make(map[string]string)
 
 	file, err := c.fs.ReadFile(config.AgentConfigFile())
+	if err != nil {
+		return envVariables
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(file)), "\n")
+	for _, line := range lines {
+		parts := strings.SplitN(strings.TrimSpace(line), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		envVariables[parts[0]] = parts[1]
+	}
+
+	return envVariables
+}
+
+func (c *Client) getInstanceSpecificEnvVariables() map[string]string {
+	envVariables := make(map[string]string)
+
+	file, err := c.fs.ReadFile(config.InstanceConfigFile())
 	if err != nil {
 		return envVariables
 	}
