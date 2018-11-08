@@ -18,10 +18,16 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/aws/amazon-ecs-init/ecs-init/docker"
+	"github.com/golang/mock/gomock"
 
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/stretchr/testify/assert"
 )
+
+const immediately = time.Duration(-1)
 
 func TestNVMLInitialize(t *testing.T) {
 	nvidiaGPUManager := NewNvidiaGPUManager()
@@ -326,7 +332,13 @@ func TestGPUSetupSuccessful(t *testing.T) {
 }
 
 func TestSetupNVMLError(t *testing.T) {
-	nvidiaGPUManager := NewNvidiaGPUManager()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBackoff := docker.NewMockBackoff(ctrl)
+	nvidiaGPUManager := &NvidiaGPUManager{
+		initBackoff: mockBackoff,
+	}
 	MatchFilePattern = func(pattern string) ([]string, error) {
 		return []string{"/dev/nvidia0", "/dev/nvidia1"}, nil
 	}
@@ -341,6 +353,11 @@ func TestSetupNVMLError(t *testing.T) {
 		InitializeNVML = InitNVML
 		ShutdownNVML = ShutdownNVMLib
 	}()
+	gomock.InOrder(
+		mockBackoff.EXPECT().ShouldRetry().Return(true),
+		mockBackoff.EXPECT().Duration().Return(immediately),
+		mockBackoff.EXPECT().ShouldRetry().Return(false),
+	)
 	err := nvidiaGPUManager.Setup()
 	assert.Error(t, err)
 }

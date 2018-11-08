@@ -58,19 +58,19 @@ const (
 	usernsMode = "host"
 	// minBackoffDuration specifies the minimum backoff duration for ping to
 	// return a success response from the docker socket
-	minBackoffDuration = time.Second
+	MinBackoffDuration = time.Second
 	// maxBackoffDuration specifies the maximum backoff duration for ping to
 	// return a success response from docker socket
-	maxBackoffDuration = 5 * time.Second
+	MaxBackoffDuration = 5 * time.Second
 	// backoffJitterMultiple specifies the backoff jitter multiplier
 	// coefficient when pinging the docker socket
-	backoffJitterMultiple = 0.2
+	BackoffJitterMultiple = 0.2
 	// backoffMultiple specifies the backoff multiplier coefficient when
 	// pinging the docker socket
-	backoffMultiple = 2
+	BackoffMultiple = 2
 	// maxRetries specifies the maximum number of retries for ping to return
 	// a successful response from the docker socket
-	maxRetries = 5
+	MaxRetries = 5
 	// CapNetAdmin to start agent with NET_ADMIN capability
 	// For more information on capabilities, please read this manpage:
 	// http://man7.org/linux/man-pages/man7/capabilities.7.html
@@ -111,8 +111,8 @@ func NewClient() (*Client, error) {
 	// Create a backoff for pinging the docker socker. This should result in 17-19
 	// seconds of delay in the worst-case between different actions that depend on
 	// docker
-	pingBackoff := backoff.NewBackoff(minBackoffDuration, maxBackoffDuration, backoffJitterMultiple,
-		backoffMultiple, maxRetries)
+	pingBackoff := backoff.NewBackoff(MinBackoffDuration, MaxBackoffDuration, BackoffJitterMultiple,
+		BackoffMultiple, MaxRetries)
 	client, err := newDockerClient(godockerClientFactory{}, pingBackoff)
 	if err != nil {
 		return nil, err

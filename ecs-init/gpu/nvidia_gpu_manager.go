@@ -18,6 +18,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/aws/amazon-ecs-init/ecs-init/backoff"
+	"github.com/aws/amazon-ecs-init/ecs-init/docker"
 
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/cihub/seelog"
@@ -43,6 +47,7 @@ type NvidiaGPUManager struct {
 	DriverVersion       string
 	NvidiaDockerVersion string
 	GPUIDs              []string
+	initBackoff         backoff.Backoff
 }
 
 const (
@@ -61,7 +66,10 @@ var ErrNoGPUDeviceFound = errors.New("No GPU device files found on the instance"
 
 // NewNvidiaGPUManager is used to obtain NvidiaGPUManager handle
 func NewNvidiaGPUManager() GPUManager {
-	return &NvidiaGPUManager{}
+	return &NvidiaGPUManager{
+		initBackoff: backoff.NewBackoff(docker.MinBackoffDuration, docker.MaxBackoffDuration, docker.BackoffJitterMultiple,
+			docker.BackoffMultiple, docker.MaxRetries),
+	}
 }
 
 // Setup is used for setting up gpu information in the instance
@@ -73,7 +81,18 @@ func (n *NvidiaGPUManager) Setup() error {
 		}
 		return errors.Wrapf(err, "setup failed")
 	}
-	err = n.Initialize()
+	for {
+		err = n.Initialize()
+		if err == nil {
+			break
+		}
+		if !n.initBackoff.ShouldRetry() {
+			break
+		}
+		backoffDuration := n.initBackoff.Duration()
+		seelog.Infof("Error initializing Nvidia Management Library: %v, backing off for '%v'", err, backoffDuration)
+		time.Sleep(backoffDuration)
+	}
 	if err != nil {
 		return errors.Wrapf(err, "setup failed")
 	}
